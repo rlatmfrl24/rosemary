@@ -39,8 +39,14 @@ class MainWindow(QMainWindow):
         open_downloader_action.triggered.connect(open_downloader)
 
         change_targetpath_action = QAction("Change Target Path..", self)
+        change_targetpath_action.setShortcut("Ctrl+T")
         change_targetpath_action.setStatusTip("Target Path를 변경합니다.")
         change_targetpath_action.triggered.connect(self.mainWidget.change_targetpath)
+
+        move_new_files_to_precede = QAction("Move Files to precede path..", self)
+        move_new_files_to_precede.setShortcut("Ctrl+M")
+        move_new_files_to_precede.setStatusTip("다운로드 경로의 신규 파일들을 모두 상위 경로로 이동시킵니다.")
+        move_new_files_to_precede.triggered.connect(self.mainWidget.move_files_to_precede_path)
 
         setting_action = QAction("Settings..", self)
         setting_action.setStatusTip("설정 화면을 엽니다.")
@@ -61,6 +67,7 @@ class MainWindow(QMainWindow):
         menu_file = main_menu.addMenu('&File')
         menu_file.addAction(open_downloader_action)
         menu_file.addAction(change_targetpath_action)
+        menu_file.addAction(move_new_files_to_precede)
         menu_file.addAction(setting_action)
         menu_file.addAction(exit_action)
         menu_roll = main_menu.addMenu('&Roll')
@@ -224,13 +231,21 @@ class MainView(QWidget):
     def change_targetpath(self):
         settings = QSettings()
         file = str(QFileDialog.getExistingDirectory(self, "Select Directory", self.TargetPath.text()))
-        Logger.LOGGER.info("Change to target path => "+file)
         if file is not "":
             FileUtil.targetPath = file
             while self.mainTable.rowCount() > 0:
                 self.mainTable.removeRow(0)
             self.TargetPath.setText(FileUtil.targetPath)
             settings.setValue(Settings.SETTINGS_TARGET_PATH, self.TargetPath.text())
+            Logger.LOGGER.info("Change to target path => " + file)
+
+    def move_files_to_precede_path(self):
+        btn_reply = QMessageBox.question(self,
+                                         'Move Items', 'Are you sure to Move to Precede Path items in Download Directory?',
+                                         QMessageBox.Yes | QMessageBox.No,
+                                         QMessageBox.No)
+        if btn_reply == QMessageBox.Yes:
+            open_loading_dialog(MoveFilesToPrecede())
 
     def remove_item(self):
         try:
@@ -306,6 +321,30 @@ class ThumbnailWidget(QLabel):
         qim = QImage(data, thumbnail_img.size[0], thumbnail_img.size[1], QImage.Format_ARGB32)
         pixel_map = QPixmap.fromImage(qim)
         self.setPixmap(pixel_map)
+
+
+class MoveFilesToPrecede(QThread):
+    notifyProgress = pyqtSignal(int)
+    current_state = pyqtSignal(str)
+
+    def run(self):
+        settings = QSettings()
+        pref_save_path = settings.value(Settings.SETTINGS_SAVE_PATH, Settings.DEFAULT_TARGET_PATH, type=str)
+        move_path = pref_save_path[:pref_save_path.rfind('/')]
+        cpt = sum([len(files) for r, d, files in os.walk(pref_save_path)])
+        index = 0
+
+        for (path, dir, files) in os.walk(pref_save_path):
+            for filename in files:
+                index = index + 1
+                fix_path = path.replace(pref_save_path, move_path)
+                if not os.path.exists(fix_path):
+                    os.makedirs(fix_path)
+                shutil.copy(path+'/'+filename, fix_path+'/'+filename)
+                self.notifyProgress.emit(100 * index / cpt)
+                self.current_state.emit((fix_path+'/'+filename).replace('\\', '/'))
+        shutil.rmtree(pref_save_path)
+        os.makedirs(pref_save_path)
 
 
 class FileLoadFromTarget(QThread):
