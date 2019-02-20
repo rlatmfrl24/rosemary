@@ -25,3 +25,6 @@ GUI Program for manga download & management
 #### 2019-02-20
 - README.md 추가
 - 신규 Repository 이관
+
+#### 2019-02-21
+- 빌드 전용 파일 추가
