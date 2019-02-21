@@ -26,6 +26,7 @@ GUI Program for manga download & management
 - 빌드 전용 파일 추가
 - requests Exception catch 로직 추가
 - Logger 개선
+- 수동 DB 입력 기능 추가
 #### 2019-02-20
 - README.md 추가
 - 신규 Repository 이관

@@ -33,7 +33,7 @@ class Gallery:
     """
     artist, code, group, keyword, original, path, title, type, url = "", "", "", "", "", "", "", "", ""
 
-    def __init__(self, source):
+    def initialize(self, source):
         self.title = source.find('b').text
         self.url = source.find('a', attrs={'target': '_blank'})['href']
         self.code = self.url[self.url.rfind('/') + 1:]
@@ -71,6 +71,16 @@ class Gallery:
         print('title: ' + self.title)
         print("type: " + self.type)
         print('url: ' + self.url)
+
+    def valid_input_error(self):
+        """
+        필수 항목(code, title, url) 입력 체크
+        :return: 필수 항목 입력 여부
+        """
+        if self.code == "" or self.title == "" or self.url == "":
+            return False
+        else:
+            return True
 
 
 class ImageDownload(QThread):
@@ -263,7 +273,8 @@ def get_download_list(crawl_page, parent):
             soup = BeautifulSoup(requests.get(URL_HIYOBI+'list/'+str(i), cookies=cookies, headers=headers).content, 'html.parser')
             galleries = soup.find_all('div', class_="gallery-content")
             for data in galleries:
-                gallery = Gallery(data)
+                gallery = Gallery()
+                gallery.initialize(data)
                 if gallery.code not in exception_list:
                     gallery_list.append(gallery)
             parent.notifyProgress.emit(100 * (i+2) / (crawl_page+2))

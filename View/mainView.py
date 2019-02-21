@@ -33,10 +33,6 @@ class MainWindow(QMainWindow):
         exit_action.setStatusTip('프로그램을 종료합니다.')
         exit_action.triggered.connect(close_application)
 
-        open_downloader_action = QAction("Open Downloader..", self)
-        open_downloader_action.setShortcut("Ctrl+D")
-        open_downloader_action.setStatusTip("Hiyobi Downloader를 실행합니다.")
-        open_downloader_action.triggered.connect(open_downloader)
 
         change_targetpath_action = QAction("Change Target Path..", self)
         change_targetpath_action.setShortcut("Ctrl+T")
@@ -63,9 +59,18 @@ class MainWindow(QMainWindow):
         instant_roll_action.setStatusTip('기본 설정으로 바로 Roll 작업을 수행합니다')
         instant_roll_action.triggered.connect(self.instant_roll)
 
+        open_downloader_action = QAction("Open Downloader..", self)
+        open_downloader_action.setShortcut("Ctrl+D")
+        open_downloader_action.setStatusTip("Hiyobi Downloader를 실행합니다.")
+        open_downloader_action.triggered.connect(open_downloader)
+
+        manual_input_action = QAction('Manual Input data to Firebase', self)
+        manual_input_action.setShortcut("Ctrl+I")
+        manual_input_action.setStatusTip('수동으로 Hiyobi 데이터를 Firebase에 입력합니다.')
+        manual_input_action.triggered.connect(open_manual_input)
+
         main_menu = self.menuBar()
         menu_file = main_menu.addMenu('&File')
-        menu_file.addAction(open_downloader_action)
         menu_file.addAction(change_targetpath_action)
         menu_file.addAction(move_new_files_to_precede)
         menu_file.addAction(setting_action)
@@ -73,6 +78,9 @@ class MainWindow(QMainWindow):
         menu_roll = main_menu.addMenu('&Roll')
         menu_roll.addAction(open_roll_option_action)
         menu_roll.addAction(instant_roll_action)
+        menu_download = main_menu.addMenu('&Download')
+        menu_download.addAction(open_downloader_action)
+        menu_download.addAction(manual_input_action)
 
     def open_roll_option_dialog(self):
         dlg = Dialog.RollOptionDialog()
@@ -405,6 +413,11 @@ def open_downloader():
 def open_loading_dialog(thread):
     dlg = Dialog.ProgressBar(thread)
     dlg.show()
+    dlg.exec_()
+
+
+def open_manual_input():
+    dlg = Dialog.ManualInputDialog()
     dlg.exec_()
 
 
