@@ -1,6 +1,14 @@
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QMessageBox, QDialog, QLabel, QLineEdit, QPushButton, QHBoxLayout, QWidget, QCheckBox, QVBoxLayout, QProgressBar
 from PyQt5.QtGui import QIntValidator
 from Model import Logger
+
+
+class ErrorDialog(QMessageBox):
+    def __init__(self):
+        super().__init__()
+
+    def open_dialog(self, title, content):
+        self.critical(self, title, content)
 
 
 class RollOptionDialog(QDialog):

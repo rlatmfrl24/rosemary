@@ -217,7 +217,9 @@ class MainView(QWidget):
             FileUtil.open_viewer(selected_item_path)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def table_open_explorer_action(self):
         try:
@@ -226,7 +228,9 @@ class MainView(QWidget):
             FileUtil.open_explorer(selected_item_path)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def change_targetpath(self):
         settings = QSettings()
@@ -279,10 +283,14 @@ class MainView(QWidget):
             shutil.move(selected_item_path, target_path)
             self.mainTable.removeRow(row_number)
             print('\a')
-            QMessageBox.information(self, "Move", selected_item_path+"\nis Moved to \n"+target_path, QMessageBox.Ok)
+            QMessageBox.information(self, "Move",
+                                    selected_item_path+"\nis Moved to \n"+target_path,
+                                    QMessageBox.Ok)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def copy_item(self):
         try:
@@ -292,10 +300,14 @@ class MainView(QWidget):
             target_path = file+'/' + selected_item_path[selected_item_path.rfind('/')+1:]
             shutil.copyfile(selected_item_path, target_path)
             print('\a')
-            QMessageBox.information(self, "Copy", selected_item_path+"\nis Copied to \n"+target_path, QMessageBox.Ok)
+            QMessageBox.information(self, "Copy",
+                                    selected_item_path+"\nis Copied to \n"+target_path,
+                                    QMessageBox.Ok)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
 
 class NumericItem(QTableWidgetItem):
@@ -334,13 +346,14 @@ class MoveFilesToPrecede(QThread):
         cpt = sum([len(files) for r, d, files in os.walk(pref_save_path)])
         index = 0
 
-        for (path, dir, files) in os.walk(pref_save_path):
+        for (path, _, files) in os.walk(pref_save_path):
             for filename in files:
                 index = index + 1
                 fix_path = path.replace(pref_save_path, move_path)
                 if not os.path.exists(fix_path):
                     os.makedirs(fix_path)
                 shutil.copy(path+'/'+filename, fix_path+'/'+filename)
+                Logger.LOGGER.info()
                 self.notifyProgress.emit(100 * index / cpt)
                 self.current_state.emit((fix_path+'/'+filename).replace('\\', '/'))
         shutil.rmtree(pref_save_path)

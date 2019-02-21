@@ -35,13 +35,13 @@ class DownloaderDialog(QDialog):
                                                  '\nAre you sure close this dialog?',
                                                  QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if btn_reply == QMessageBox.Yes:
-                    Logger.LOGGER.warning('[SYSTEM]: (DownloadDialog) Thread Process will close shortly..')
+                    Logger.LOGGER.warning('(DownloadDialog) Thread Process will close shortly..')
                     self.thread.terminate()
                     event.accept()
                 else:
                     event.ignore()
         except AttributeError:
-            Logger.LOGGER.warning('[SYSTEM]: (DownloadDialog) No running thread, close dialog')
+            Logger.LOGGER.warning('(DownloadDialog) No running thread, close dialog')
         except:
             Logger.LOGGER.error(traceback.format_exc())
             pass

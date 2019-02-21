@@ -1,7 +1,9 @@
 import requests
 import json
 import datetime
+import sys
 from Model import Logger
+from View import Dialog
 
 
 class Encoder(json.JSONEncoder):
@@ -40,40 +42,54 @@ class FirebaseClient:
         :param password: 인증 Password
         :return: Firebase ID Token
         """
-        auth_url = self.auth_url + self.firebase_web_key
-        auth_data = {
-            u'email': email,
-            u'password': password,
-            u'returnSecureToken': True
-        }
-        response = requests.post(
-            auth_url,
-            headers={'Content-Type': 'application/json'},
-            data=json.dumps(auth_data))
-        token = response.json()['idToken']
-        return token
+        try:
+            auth_url = self.auth_url + self.firebase_web_key
+            auth_data = {
+                u'email': email,
+                u'password': password,
+                u'returnSecureToken': True
+            }
+            response = requests.post(
+                auth_url,
+                headers={'Content-Type': 'application/json'},
+                data=json.dumps(auth_data))
+            token = response.json()['idToken']
+            return token
+        except requests.exceptions.RequestException:
+            Logger.LOGGER.error("Firebase Authorization Error..")
+            Dialog.ErrorDialog().open_dialog("Authorization Error", "Firebase Authorization Error!")
+            sys.exit()
+        except Exception:
+            Logger.LOGGER.error("Unexpected Error in Firebase Authorization")
 
     def get_document_list(self):
         """
         Firebase로부터 Document Code List를 가져온다
         :return: Firebase로부터 가져온 Code List
         """
-        code_list = []
-        target_url = self.firestore_api_url + self.database_route + '/documents:runQuery?key='+self.firebase_web_key
-        structed_query = {
-            "structuredQuery": {
-                "from": [
-                    {
-                        "collectionId": 'hiyobi'
-                    }
-                ],
+        try:
+            code_list = []
+            target_url = self.firestore_api_url + self.database_route + '/documents:runQuery?key='+self.firebase_web_key
+            structed_query = {
+                "structuredQuery": {
+                    "from": [
+                        {
+                            "collectionId": 'hiyobi'
+                        }
+                    ],
+                }
             }
-        }
-        headers = {'Authorization': 'Bearer ' + self.idToken}
-        response = requests.post(target_url, headers=headers, json=structed_query)
-        for item in response.json():
-            code_list.append(str(item['document']['fields']['code']['stringValue']))
-        return code_list
+            headers = {'Authorization': 'Bearer ' + self.idToken}
+            response = requests.post(target_url, headers=headers, json=structed_query)
+            for item in response.json():
+                code_list.append(str(item['document']['fields']['code']['stringValue']))
+            return code_list
+        except requests.exceptions.RequestException:
+            Logger.LOGGER.error("Firebase Requests Error..")
+            Dialog.ErrorDialog().open_dialog("Firebase Error", "Firebase Request Error!")
+            sys.exit()
+        except Exception:
+            Logger.LOGGER.error("Unexpected Error in Firebase Request")
 
     def insert_data(self, gallery):
         """
@@ -98,4 +114,4 @@ class FirebaseClient:
             }
         }
         response = requests.post(target_url, headers=headers, data=json.dumps(data, cls=Encoder))
-        Logger.LOGGER.info("[SYSTEM]: Save Data to Firebase Document ID at '"+response.json()['name'].split('/')[-1]+"'")
+        Logger.LOGGER.info("Save Data to Firebase Document ID at '"+response.json()['name'].split('/')[-1]+"'")
