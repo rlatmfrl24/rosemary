@@ -134,6 +134,7 @@ class GalleryDownload(QThread):
     def run(self):
         settings = QSettings()
         pref_target_path = settings.value(Settings.SETTINGS_SAVE_PATH, Settings.DEFAULT_TARGET_PATH, type=str)
+        pref_max_pool_cnt = settings.value(Settings.SETTINGS_MAX_POOL_CNT, Settings.DEFAULT_MAX_POOL, type=int)
         gallery_save_path = pref_target_path+'/'+self.gallery.path
         if not os.path.exists(gallery_save_path):
             os.makedirs(gallery_save_path)
@@ -170,13 +171,20 @@ class GalleryDownload(QThread):
         Logger.LOGGER.info("Download Start..")
         img_urls = soup.find_all('div', class_="img-url")
         self.total_cnt = len(img_urls)
-        for img_url in soup.find_all('div', class_="img-url"):
-            if use_cluodflare is True:
-                thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, headers, cookies, self)
+
+        while len(img_urls) > 0:
+            if len(self.thread_pool) > pref_max_pool_cnt:
+                for thread in self.thread_pool:
+                    thread.wait()
+                self.thread_pool.clear()
             else:
-                thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, None, None, self)
-            thread.start()
-            self.thread_pool.append(thread)
+                img_url = img_urls.pop()
+                if use_cluodflare is True:
+                    thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, headers, cookies, self)
+                else:
+                    thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, None, None, self)
+                thread.start()
+                self.thread_pool.append(thread)
         for thread in self.thread_pool:
             thread.wait()
 
@@ -196,7 +204,8 @@ class GalleryDownload(QThread):
             print(traceback.format_exc())
             Logger.LOGGER.error("Compressing Process Error... pass")
         # Save to Firebase
-        fbclient.insert_data(self.gallery)
+        # TODO Enable next line on Build
+        # fbclient.insert_data(self.gallery)
 
 
 class DownloadByTable(QThread):
@@ -252,6 +261,8 @@ def get_download_list(crawl_page, parent):
     Logger.LOGGER.info("Load exception list from Firebase")
     parent.current_state.emit("Load exception list from Firebase")
     exception_list = fbclient.get_document_list()
+    # TODO Remove next line on build
+    # exception_list = []
     parent.notifyProgress.emit(100 * 1 / (crawl_page+2))
 
     try:

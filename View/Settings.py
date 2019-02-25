@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QStandardItem, QStandardItemModel
+from PyQt5.QtGui import QStandardItem, QStandardItemModel, QIntValidator
 from PyQt5.QtCore import QSettings, Qt, QModelIndex, pyqtSlot
 import os
 from Model import Logger
@@ -11,8 +11,10 @@ SETTINGS_VIEWER_PATH = 'settings/general/viewer'
 SETTINGS_TARGET_PATH = 'settings/general/target'
 SETTINGS_SAVE_PATH = 'settings/download/save'
 SETTINGS_TOGGLE_PREVIEW = 'settings/general/preview'
+SETTINGS_MAX_POOL_CNT = 'settings/download/pool'
 HONEYVIEW_PATH = os.environ['ProgramW6432'] + '\\Honeyview\\Honeyview.exe'
 DEFAULT_TARGET_PATH = 'D:/hiyobi/new/'
+DEFAULT_MAX_POOL = 50
 
 
 class StWidgetForm(QGroupBox):
@@ -28,14 +30,20 @@ class DownloadSetting(StWidgetForm):
         super(DownloadSetting, self).__init__()
         settings = QSettings()
         pref_save_path = settings.value(SETTINGS_SAVE_PATH, DEFAULT_TARGET_PATH, type=str)
+        pref_max_pool_cnt = settings.value(SETTINGS_MAX_POOL_CNT, DEFAULT_MAX_POOL, type=int)
 
         self.setTitle('Download Settings')
         lbl_save_path = QLabel()
-        lbl_save_path.setText('Path:')
+        lbl_save_path.setText('Download Path:')
+        lbl_max_pool_cnt = QLabel()
+        lbl_max_pool_cnt.setText('Max Download Pool:')
 
         self.input_save_path = QLineEdit()
         self.input_save_path.setReadOnly(True)
         self.input_save_path.setText(pref_save_path)
+        self.input_max_pool_cnt = QLineEdit()
+        self.input_max_pool_cnt.setValidator(QIntValidator())
+        self.input_max_pool_cnt.setText(str(pref_max_pool_cnt))
 
         btn_configure_save_path = QPushButton()
         btn_configure_save_path.setText('Set path..')
@@ -45,11 +53,18 @@ class DownloadSetting(StWidgetForm):
         layout_save_path.addWidget(lbl_save_path)
         layout_save_path.addWidget(self.input_save_path)
         layout_save_path.addWidget(btn_configure_save_path)
+
+        layout_max_pool_cnt = QHBoxLayout()
+        layout_max_pool_cnt.addWidget(lbl_max_pool_cnt)
+        layout_max_pool_cnt.addWidget(self.input_max_pool_cnt)
+
         self.box.addLayout(layout_save_path)
+        self.box.addLayout(layout_max_pool_cnt)
 
     def save_download_settings(self):
         settings = QSettings()
         settings.setValue(SETTINGS_SAVE_PATH, self.input_save_path.text())
+        settings.setValue(SETTINGS_MAX_POOL_CNT, self.input_max_pool_cnt.text())
         settings.sync()
 
     def change_save_path(self):
