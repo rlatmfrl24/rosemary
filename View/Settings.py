@@ -14,7 +14,7 @@ SETTINGS_TOGGLE_PREVIEW = 'settings/general/preview'
 SETTINGS_MAX_POOL_CNT = 'settings/download/pool'
 HONEYVIEW_PATH = os.environ['ProgramW6432'] + '\\Honeyview\\Honeyview.exe'
 DEFAULT_TARGET_PATH = 'D:/hiyobi/new/'
-DEFAULT_MAX_POOL = 50
+DEFAULT_MAX_POOL = 8
 
 
 class StWidgetForm(QGroupBox):

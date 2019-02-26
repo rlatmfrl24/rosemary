@@ -1,9 +1,11 @@
-pytz==2018.9
-tqdm==4.30.0
-selenium==3.141.0
 requests==2.21.0
-Send2Trash==1.5.0
+requests_threads==0.1.1
 cfscrape==1.9.5
+pytz==2018.9
+selenium==3.141.0
+Send2Trash==1.5.0
+tqdm==4.30.0
+requests_futures==0.9.9
 Pillow==5.4.1
 PyQt5==5.12
 beautifulsoup4==4.7.1

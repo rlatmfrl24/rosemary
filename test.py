@@ -1,10 +1,15 @@
-import logging
+from requests_threads import AsyncSession
 
-mylogger = logging.getLogger('rm')
-mylogger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+session = AsyncSession()
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-mylogger.addHandler(stream_handler)
-mylogger.info('server')
+
+async def _main():
+    rs = []
+    for _ in range(100):
+
+        rs.append(session.get("", ))
+        rs.append(await session.get('http://httpbin.org/get'))
+    print(rs)
+
+if __name__ == '__main__':
+    session.run(_main)

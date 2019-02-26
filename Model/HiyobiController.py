@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from time import sleep
 from selenium import webdriver
 from tqdm import tqdm
+from requests_futures.sessions import FuturesSession
 import traceback
 import shutil
 import cfscrape
@@ -85,6 +86,7 @@ class Gallery:
 
 class ImageDownload(QThread):
     """
+    @deprecated
     단일 이미지 다운로드용 스레드
     """
 
@@ -131,6 +133,13 @@ class GalleryDownload(QThread):
     def __del__(self):
         self.wait()
 
+    def response_to_file(self, response, name, path):
+        save_directory = path + "/"
+        with open(save_directory + name, 'wb') as f:
+            f.write(response.content)
+        self.current_cnt = self.current_cnt + 1
+        self.state.emit(str(self.current_cnt) + '/' + str(self.total_cnt))
+
     def run(self):
         settings = QSettings()
         pref_target_path = settings.value(Settings.SETTINGS_SAVE_PATH, Settings.DEFAULT_TARGET_PATH, type=str)
@@ -147,18 +156,15 @@ class GalleryDownload(QThread):
             pass
         user_agent = self.driver.execute_script("return navigator.userAgent;")
 
-        use_cluodflare = None
         try:
             cookie_value = '__cfduid=' + self.driver.get_cookie('__cfduid')['value'] + \
                            '; cf_clearance=' + self.driver.get_cookie('cf_clearance')['value']
             headers = {'User-Agent': user_agent}
             cookies = {'session_id': cookie_value}
-            use_cluodflare = True
         except TypeError:
             Logger.LOGGER.warning("Not apply cookies to requests")
             headers = None
             cookies = None
-            use_cluodflare = False
 
         # Fetch image data from gallery page
         self.state.emit('Fetch..')
@@ -171,22 +177,19 @@ class GalleryDownload(QThread):
         Logger.LOGGER.info("Download Start..")
         img_urls = soup.find_all('div', class_="img-url")
         self.total_cnt = len(img_urls)
-
-        while len(img_urls) > 0:
-            if len(self.thread_pool) > pref_max_pool_cnt:
-                for thread in self.thread_pool:
-                    thread.wait()
-                self.thread_pool.clear()
-            else:
-                img_url = img_urls.pop()
-                if use_cluodflare is True:
-                    thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, headers, cookies, self)
-                else:
-                    thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, None, None, self)
-                thread.start()
-                self.thread_pool.append(thread)
-        for thread in self.thread_pool:
-            thread.wait()
+        session = FuturesSession(max_workers=pref_max_pool_cnt)
+        if headers is not None:
+            session.headers = headers
+        if cookies is not None:
+            session.cookies = cookies
+        responses = {}
+        for url_path in img_urls:
+            url = READER_URL+url_path.text
+            name = url.split('/')[-1]
+            responses[name] = session.get(url)
+        for filename in responses:
+            self.response_to_file(response=responses[filename].result(), name=filename, path=gallery_save_path)
+        session.close()
 
         # Compress Zip Files
         self.state.emit('Compressing..')
@@ -205,7 +208,7 @@ class GalleryDownload(QThread):
             Logger.LOGGER.error("Compressing Process Error... pass")
         # Save to Firebase
         # TODO Enable next line on Build
-        # fbclient.insert_data(self.gallery)
+        fbclient.insert_data(self.gallery)
 
 
 class DownloadByTable(QThread):
