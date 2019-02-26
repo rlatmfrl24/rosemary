@@ -22,6 +22,14 @@ GUI Program for manga download & management
 ## Future Works
 
 ## History
+
+#### 2019-02-26
+- Download Thread Pool 제거
+- requests-future 적용
+- 상위 파일 복사 기능 수정
+#### 2019-02-25
+- Download Thread Pool 상한 제한 추가 - *(feature)*
+- 설정에서 Thread Pool 상한 설정 기능 추가
 #### 2019-02-21
 - 빌드 전용 파일 추가
 - requests Exception catch 로직 추가

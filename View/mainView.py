@@ -360,8 +360,11 @@ class MoveFilesToPrecede(QThread):
                 fix_path = path.replace(pref_save_path, move_path)
                 if not os.path.exists(fix_path):
                     os.makedirs(fix_path)
+                path = path.replace('\\', '/')
+                fix_path = fix_path.replace('\\', '/')
+                print(path+' '+fix_path)
                 shutil.copy(path+'/'+filename, fix_path+'/'+filename)
-                Logger.LOGGER.info()
+                Logger.LOGGER.info(filename+" is moved to "+fix_path)
                 self.notifyProgress.emit(100 * index / cpt)
                 self.current_state.emit((fix_path+'/'+filename).replace('\\', '/'))
         shutil.rmtree(pref_save_path)
