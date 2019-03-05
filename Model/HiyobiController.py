@@ -1,8 +1,10 @@
+from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QSettings, QThread, pyqtSignal
 from bs4 import BeautifulSoup
 from time import sleep
 from selenium import webdriver
 from tqdm import tqdm
+from requests_futures.sessions import FuturesSession
 import traceback
 import shutil
 import cfscrape
@@ -10,7 +12,7 @@ import requests
 import re
 import os
 from Model import FileUtil, FirebaseClient, Logger
-from View import Settings
+from View import Settings, Dialog
 
 URL_HIYOBI = "https://hiyobi.me/"
 READER_URL = "https://hybcomics.xyz"
@@ -19,7 +21,7 @@ regex_hiyobi_group = re.compile(r'\((.*?)\)')
 regex_remove_bracket = re.compile(r'[\(|\)]')
 regex_replace_path = re.compile(r'\\|\:|\/|\*|\?|\"|\<|\>|\|')
 
-# 이 부분은 Private Data로 Crypto 필요
+# TODO 이 부분은 Private Data로 Crypto 필요
 fbclient = FirebaseClient.FirebaseClient(
     '397love@gmail.com',
     '397love'
@@ -32,7 +34,7 @@ class Gallery:
     """
     artist, code, group, keyword, original, path, title, type, url = "", "", "", "", "", "", "", "", ""
 
-    def __init__(self, source):
+    def initialize(self, source):
         self.title = source.find('b').text
         self.url = source.find('a', attrs={'target': '_blank'})['href']
         self.code = self.url[self.url.rfind('/') + 1:]
@@ -58,7 +60,7 @@ class Gallery:
 
     def print_gallery(self):
         """
-        Gallery 데이터 출력 함수
+        Gallery 데이터 출력 함수(Debug 용)
         :return: 
         """
         print("artist: " + self.artist)
@@ -71,9 +73,20 @@ class Gallery:
         print("type: " + self.type)
         print('url: ' + self.url)
 
+    def valid_input_error(self):
+        """
+        필수 항목(code, title, url) 입력 체크
+        :return: 필수 항목 입력 여부
+        """
+        if self.code == "" or self.title == "" or self.url == "":
+            return False
+        else:
+            return True
+
 
 class ImageDownload(QThread):
     """
+    @deprecated
     단일 이미지 다운로드용 스레드
     """
 
@@ -98,8 +111,10 @@ class ImageDownload(QThread):
                 f.write(cf_url)
             self.parent.current_cnt = self.parent.current_cnt+1
             self.parent.state.emit(str(self.parent.current_cnt)+'/'+str(self.parent.total_cnt))
-        except SystemError:
-            pass
+        except requests.exceptions.RequestException:
+            Logger.LOGGER.error(traceback.format_exc())
+            QMessageBox.critical(self, "Download Error",
+                                 "Error raised while download '"+self.target_url+"'\n\n"+traceback.format_exc())
 
 
 class GalleryDownload(QThread):
@@ -118,54 +133,63 @@ class GalleryDownload(QThread):
     def __del__(self):
         self.wait()
 
+    def response_to_file(self, response, name, path):
+        save_directory = path + "/"
+        with open(save_directory + name, 'wb') as f:
+            f.write(response.content)
+        self.current_cnt = self.current_cnt + 1
+        self.state.emit(str(self.current_cnt) + '/' + str(self.total_cnt))
+
     def run(self):
         settings = QSettings()
         pref_target_path = settings.value(Settings.SETTINGS_SAVE_PATH, Settings.DEFAULT_TARGET_PATH, type=str)
+        pref_max_pool_cnt = settings.value(Settings.SETTINGS_MAX_POOL_CNT, Settings.DEFAULT_MAX_POOL, type=int)
         gallery_save_path = pref_target_path+'/'+self.gallery.path
         if not os.path.exists(gallery_save_path):
             os.makedirs(gallery_save_path)
 
         # Cloudflare Authorization
         self.state.emit('Authorize..')
-        Logger.LOGGER.info("[SYSTEM]: Wait for Cloudflare Authorization..")
+        Logger.LOGGER.info("Wait for Cloudflare Authorization..")
         self.driver.get(URL_HIYOBI)
         while "Just a moment..." in self.driver.page_source:
             pass
         user_agent = self.driver.execute_script("return navigator.userAgent;")
 
-        use_cluodflare = None
         try:
             cookie_value = '__cfduid=' + self.driver.get_cookie('__cfduid')['value'] + \
                            '; cf_clearance=' + self.driver.get_cookie('cf_clearance')['value']
             headers = {'User-Agent': user_agent}
             cookies = {'session_id': cookie_value}
-            use_cluodflare = True
         except TypeError:
-            Logger.LOGGER.warning("[SYSTEM]: Not apply cookies to requests")
+            Logger.LOGGER.warning("Not apply cookies to requests")
             headers = None
             cookies = None
-            use_cluodflare = False
 
         # Fetch image data from gallery page
         self.state.emit('Fetch..')
-        Logger.LOGGER.info("[SYSTEM]: Connect to Gallery page..")
+        Logger.LOGGER.info("Connect to Gallery page..")
         self.driver.get(self.gallery.url)
         sleep(1)
         soup = BeautifulSoup(self.driver.page_source, "html.parser")
 
         # Start download multi-thread
-        Logger.LOGGER.info("[SYSTEM]: Download Start..")
+        Logger.LOGGER.info("Download Start..")
         img_urls = soup.find_all('div', class_="img-url")
         self.total_cnt = len(img_urls)
-        for img_url in soup.find_all('div', class_="img-url"):
-            if use_cluodflare is True:
-                thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, headers, cookies, self)
-            else:
-                thread = ImageDownload(READER_URL + img_url.text, gallery_save_path, None, None, self)
-            thread.start()
-            self.thread_pool.append(thread)
-        for thread in self.thread_pool:
-            thread.wait()
+        session = FuturesSession(max_workers=pref_max_pool_cnt)
+        if headers is not None:
+            session.headers = headers
+        if cookies is not None:
+            session.cookies = cookies
+        responses = {}
+        for url_path in img_urls:
+            url = READER_URL+url_path.text
+            name = url.split('/')[-1]
+            responses[name] = session.get(url)
+        for filename in responses:
+            self.response_to_file(response=responses[filename].result(), name=filename, path=gallery_save_path)
+        session.close()
 
         # Compress Zip Files
         self.state.emit('Compressing..')
@@ -182,8 +206,8 @@ class GalleryDownload(QThread):
         except:
             print(traceback.format_exc())
             Logger.LOGGER.error("Compressing Process Error... pass")
-
         # Save to Firebase
+        # TODO Enable next line on Build
         fbclient.insert_data(self.gallery)
 
 
@@ -216,13 +240,13 @@ class DownloadByTable(QThread):
         driver.implicitly_wait(10)
 
         for item in self.list:
-            Logger.LOGGER.info('[SYSTEM]: Download Start => '+item.title)
+            Logger.LOGGER.info('Download Start => '+item.title)
             self.item_index.emit(self.list.index(item))
             self.current_state.emit('Start!')
             thread = GalleryDownload(item, self.current_state, driver)
             thread.start()
             thread.wait()
-            Logger.LOGGER.info('[SYSTEM]: Download Finished => '+item.title)
+            Logger.LOGGER.info('Download Finished => '+item.title)
             Logger.LOGGER.info('='*100)
             self.current_state.emit('Finish!')
         driver.close()
@@ -237,30 +261,43 @@ def get_download_list(crawl_page, parent):
     :param parent: 진행 상황을 표시할 화면
     :return: 수집된 Gallery List
     """
-
-    Logger.LOGGER.info("[SYSTEM]: Load exception list from Firebase")
+    Logger.LOGGER.info("Load exception list from Firebase")
     parent.current_state.emit("Load exception list from Firebase")
     exception_list = fbclient.get_document_list()
+    # TODO Remove next line on build
+    # exception_list = []
     parent.notifyProgress.emit(100 * 1 / (crawl_page+2))
 
-    gallery_list = []
-    Logger.LOGGER.info("[SYSTEM]: Get cookie data for Cloudflare..")
-    parent.current_state.emit("Get cookie data for Cloudflare..")
-    cookie_value, user_agent = cfscrape.get_cookie_string(URL_HIYOBI)
-    headers = {'User-Agent': user_agent}
-    cookies = {'session_id': cookie_value}
-    parent.notifyProgress.emit(100 * 2 / (crawl_page+2))
+    try:
+        gallery_list = []
+        Logger.LOGGER.info("Get cookie data for Cloudflare..")
+        parent.current_state.emit("Get cookie data for Cloudflare..")
+        cookie_value, user_agent = cfscrape.get_cookie_string(URL_HIYOBI)
+        headers = {'User-Agent': user_agent}
+        cookies = {'session_id': cookie_value}
+        parent.notifyProgress.emit(100 * 2 / (crawl_page+2))
+    except Exception:
+        Logger.LOGGER.error("Unexpected Exception Error..")
+        Dialog.ErrorDialog().open_dialog("Unexpected Exception Error", "Unexpected Exception Request Error!")
 
-    for i in tqdm(range(1, crawl_page+1)):
-        # print("[SYSTEM]: Load From Page %d.." % i)
-        parent.current_state.emit("Load From Page %d.." % i)
-        soup = BeautifulSoup(requests.get(URL_HIYOBI+'list/'+str(i), cookies=cookies, headers=headers).content, 'html.parser')
-        galleries = soup.find_all('div', class_="gallery-content")
-        for data in galleries:
-            gallery = Gallery(data)
-            if gallery.code not in exception_list:
-                gallery_list.append(gallery)
-        parent.notifyProgress.emit(100 * (i+2) / (crawl_page+2))
-    return gallery_list
+    try:
+        for i in tqdm(range(1, crawl_page+1)):
+            # print("[SYSTEM]: Load From Page %d.." % i)
+            parent.current_state.emit("Load From Page %d.." % i)
+            soup = BeautifulSoup(requests.get(URL_HIYOBI+'list/'+str(i), cookies=cookies, headers=headers).content, 'html.parser')
+            galleries = soup.find_all('div', class_="gallery-content")
+            for data in galleries:
+                gallery = Gallery()
+                gallery.initialize(data)
+                if gallery.code not in exception_list:
+                    gallery_list.append(gallery)
+            parent.notifyProgress.emit(100 * (i+2) / (crawl_page+2))
+        return gallery_list
+    except requests.exceptions.RequestException:
+        Logger.LOGGER.error("Hiyobi Requests Error..")
+        Dialog.ErrorDialog().open_dialog("Hiyobi Error", "Hiyobi Request Error!")
+    except Exception:
+        Logger.LOGGER.error("Unexpected Error in Hiyobi Request")
+
 
 

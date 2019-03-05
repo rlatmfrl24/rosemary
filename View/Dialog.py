@@ -1,6 +1,93 @@
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QMessageBox, QDialog, QLabel, QLineEdit, QPushButton, QHBoxLayout, QWidget, QCheckBox, QVBoxLayout, QProgressBar, QGridLayout
 from PyQt5.QtGui import QIntValidator
-from Model import Logger
+from Model import Logger, HiyobiController, FirebaseClient
+
+
+class ManualInputDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle('Manual Input')
+        self.setGeometry(100, 100, 400, 200)
+        self.le_artist = QLineEdit()
+        self.le_code = QLineEdit()
+        self.le_type = QLineEdit()
+        self.le_title = QLineEdit()
+        self.le_group = QLineEdit()
+        self.le_original = QLineEdit()
+        self.le_path = QLineEdit()
+        self.le_keyword = QLineEdit()
+        self.le_url = QLineEdit()
+        lbl_artist = QLabel('Artist: ')
+        lbl_code = QLabel('Code(*): ')
+        lbl_type = QLabel('Type: ')
+        lbl_title = QLabel('Title(*): ')
+        lbl_group = QLabel('Group: ')
+        lbl_original = QLabel('Original: ')
+        lbl_path = QLabel('Path: ')
+        lbl_keyword = QLabel('Keyword: ')
+        lbl_url = QLabel('URL(*): ')
+
+        form_layout = QGridLayout()
+        form_layout.addWidget(lbl_code, 0, 0)
+        form_layout.addWidget(self.le_code, 0, 1)
+        form_layout.addWidget(lbl_title, 1, 0)
+        form_layout.addWidget(self.le_title, 1, 1)
+        form_layout.addWidget(lbl_artist, 2, 0)
+        form_layout.addWidget(self.le_artist, 2, 1)
+        form_layout.addWidget(lbl_group, 3, 0)
+        form_layout.addWidget(self.le_group, 3, 1)
+        form_layout.addWidget(lbl_type, 4, 0)
+        form_layout.addWidget(self.le_type, 4, 1)
+        form_layout.addWidget(lbl_original, 5, 0)
+        form_layout.addWidget(self.le_original, 5, 1)
+        form_layout.addWidget(lbl_keyword, 6, 0)
+        form_layout.addWidget(self.le_keyword, 6, 1)
+        form_layout.addWidget(lbl_path, 7, 0)
+        form_layout.addWidget(self.le_path, 7, 1)
+        form_layout.addWidget(lbl_url, 8, 0)
+        form_layout.addWidget(self.le_url, 8, 1)
+
+        lbl_direction = QLabel("Please input form for Manual Data Input to Firebase.")
+        btn_submit = QPushButton('Submit')
+        btn_cancel = QPushButton('Cancel')
+        btn_cancel.clicked.connect(self.close)
+        btn_submit.clicked.connect(self.submit)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(btn_submit)
+        btn_layout.addWidget(btn_cancel)
+        dl_layout = QVBoxLayout()
+        dl_layout.addWidget(lbl_direction)
+        dl_layout.addLayout(form_layout)
+        dl_layout.addLayout(btn_layout)
+        self.setLayout(dl_layout)
+
+    def submit(self):
+        gallery = HiyobiController.Gallery()
+        gallery.code = self.le_code.text()
+        gallery.title = self.le_title.text()
+        gallery.artist = self.le_artist.text()
+        gallery.type = self.le_type.text()
+        gallery.original = self.le_original.text()
+        gallery.path = self.le_path.text()
+        gallery.url = self.le_url.text()
+        gallery.keyword = self.le_keyword.text()
+        if gallery.valid_input_error():
+            HiyobiController.fbclient.insert_data(gallery)
+            self.close()
+        else:
+            QMessageBox.warning(self, "Error", "You must enter the fields with an asterisk.")
+
+
+class ErrorDialog(QMessageBox):
+    def __init__(self):
+        super().__init__()
+
+    def open_dialog(self, title, content):
+        self.critical(self, title, content)
 
 
 class RollOptionDialog(QDialog):

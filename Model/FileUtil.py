@@ -151,7 +151,7 @@ def make_zip(src_path, dest_file):
         for (path, dir, files) in os.walk(src_path):
             for file in files:
                 full_path = os.path.join(path, file)
-                relpath = os.path.relpath(full_path, root_path);
+                relpath = os.path.relpath(full_path, root_path)
                 zf.write(full_path, relpath, zipfile.ZIP_DEFLATED)
         zf.close()
-    Logger.LOGGER.info('[SYSTEM]: "'+relpath+'" ZIP file is created successfully..')
+    Logger.LOGGER.info('"'+dest_file+'" ZIP file is created successfully..')

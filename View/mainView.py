@@ -33,14 +33,16 @@ class MainWindow(QMainWindow):
         exit_action.setStatusTip('프로그램을 종료합니다.')
         exit_action.triggered.connect(close_application)
 
-        open_downloader_action = QAction("Open Downloader..", self)
-        open_downloader_action.setShortcut("Ctrl+D")
-        open_downloader_action.setStatusTip("Hiyobi Downloader를 실행합니다.")
-        open_downloader_action.triggered.connect(open_downloader)
 
         change_targetpath_action = QAction("Change Target Path..", self)
+        change_targetpath_action.setShortcut("Ctrl+T")
         change_targetpath_action.setStatusTip("Target Path를 변경합니다.")
         change_targetpath_action.triggered.connect(self.mainWidget.change_targetpath)
+
+        move_new_files_to_precede = QAction("Move Files to precede path..", self)
+        move_new_files_to_precede.setShortcut("Ctrl+M")
+        move_new_files_to_precede.setStatusTip("다운로드 경로의 신규 파일들을 모두 상위 경로로 이동시킵니다.")
+        move_new_files_to_precede.triggered.connect(self.mainWidget.move_files_to_precede_path)
 
         setting_action = QAction("Settings..", self)
         setting_action.setStatusTip("설정 화면을 엽니다.")
@@ -57,15 +59,28 @@ class MainWindow(QMainWindow):
         instant_roll_action.setStatusTip('기본 설정으로 바로 Roll 작업을 수행합니다')
         instant_roll_action.triggered.connect(self.instant_roll)
 
+        open_downloader_action = QAction("Open Downloader..", self)
+        open_downloader_action.setShortcut("Ctrl+D")
+        open_downloader_action.setStatusTip("Hiyobi Downloader를 실행합니다.")
+        open_downloader_action.triggered.connect(open_downloader)
+
+        manual_input_action = QAction('Manual Input data to Firebase', self)
+        manual_input_action.setShortcut("Ctrl+I")
+        manual_input_action.setStatusTip('수동으로 Hiyobi 데이터를 Firebase에 입력합니다.')
+        manual_input_action.triggered.connect(open_manual_input)
+
         main_menu = self.menuBar()
         menu_file = main_menu.addMenu('&File')
-        menu_file.addAction(open_downloader_action)
         menu_file.addAction(change_targetpath_action)
+        menu_file.addAction(move_new_files_to_precede)
         menu_file.addAction(setting_action)
         menu_file.addAction(exit_action)
         menu_roll = main_menu.addMenu('&Roll')
         menu_roll.addAction(open_roll_option_action)
         menu_roll.addAction(instant_roll_action)
+        menu_download = main_menu.addMenu('&Download')
+        menu_download.addAction(open_downloader_action)
+        menu_download.addAction(manual_input_action)
 
     def open_roll_option_dialog(self):
         dlg = Dialog.RollOptionDialog()
@@ -210,7 +225,9 @@ class MainView(QWidget):
             FileUtil.open_viewer(selected_item_path)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def table_open_explorer_action(self):
         try:
@@ -219,18 +236,28 @@ class MainView(QWidget):
             FileUtil.open_explorer(selected_item_path)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def change_targetpath(self):
         settings = QSettings()
         file = str(QFileDialog.getExistingDirectory(self, "Select Directory", self.TargetPath.text()))
-        Logger.LOGGER.info("Change to target path => "+file)
         if file is not "":
             FileUtil.targetPath = file
             while self.mainTable.rowCount() > 0:
                 self.mainTable.removeRow(0)
             self.TargetPath.setText(FileUtil.targetPath)
             settings.setValue(Settings.SETTINGS_TARGET_PATH, self.TargetPath.text())
+            Logger.LOGGER.info("Change to target path => " + file)
+
+    def move_files_to_precede_path(self):
+        btn_reply = QMessageBox.question(self,
+                                         'Move Items', 'Are you sure to Move to Precede Path items in Download Directory?',
+                                         QMessageBox.Yes | QMessageBox.No,
+                                         QMessageBox.No)
+        if btn_reply == QMessageBox.Yes:
+            open_loading_dialog(MoveFilesToPrecede())
 
     def remove_item(self):
         try:
@@ -264,10 +291,14 @@ class MainView(QWidget):
             shutil.move(selected_item_path, target_path)
             self.mainTable.removeRow(row_number)
             print('\a')
-            QMessageBox.information(self, "Move", selected_item_path+"\nis Moved to \n"+target_path, QMessageBox.Ok)
+            QMessageBox.information(self, "Move",
+                                    selected_item_path+"\nis Moved to \n"+target_path,
+                                    QMessageBox.Ok)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
     def copy_item(self):
         try:
@@ -277,10 +308,14 @@ class MainView(QWidget):
             target_path = file+'/' + selected_item_path[selected_item_path.rfind('/')+1:]
             shutil.copyfile(selected_item_path, target_path)
             print('\a')
-            QMessageBox.information(self, "Copy", selected_item_path+"\nis Copied to \n"+target_path, QMessageBox.Ok)
+            QMessageBox.information(self, "Copy",
+                                    selected_item_path+"\nis Copied to \n"+target_path,
+                                    QMessageBox.Ok)
         except IndexError:
             print('\a')
-            QMessageBox.information(self, "Error", "Not selected any item.\nPlease Load or Selected any Item", QMessageBox.Ok)
+            QMessageBox.information(self, "Error",
+                                    "Not selected any item.\nPlease Load or Selected any Item",
+                                    QMessageBox.Ok)
 
 
 class NumericItem(QTableWidgetItem):
@@ -306,6 +341,34 @@ class ThumbnailWidget(QLabel):
         qim = QImage(data, thumbnail_img.size[0], thumbnail_img.size[1], QImage.Format_ARGB32)
         pixel_map = QPixmap.fromImage(qim)
         self.setPixmap(pixel_map)
+
+
+class MoveFilesToPrecede(QThread):
+    notifyProgress = pyqtSignal(int)
+    current_state = pyqtSignal(str)
+
+    def run(self):
+        settings = QSettings()
+        pref_save_path = settings.value(Settings.SETTINGS_SAVE_PATH, Settings.DEFAULT_TARGET_PATH, type=str)
+        move_path = pref_save_path[:pref_save_path.rfind('/')]
+        cpt = sum([len(files) for r, d, files in os.walk(pref_save_path)])
+        index = 0
+
+        for (path, _, files) in os.walk(pref_save_path):
+            for filename in files:
+                index = index + 1
+                fix_path = path.replace(pref_save_path, move_path)
+                if not os.path.exists(fix_path):
+                    os.makedirs(fix_path)
+                path = path.replace('\\', '/')
+                fix_path = fix_path.replace('\\', '/')
+                print(path+' '+fix_path)
+                shutil.copy(path+'/'+filename, fix_path+'/'+filename)
+                Logger.LOGGER.info(filename+" is moved to "+fix_path)
+                self.notifyProgress.emit(100 * index / cpt)
+                self.current_state.emit((fix_path+'/'+filename).replace('\\', '/'))
+        shutil.rmtree(pref_save_path)
+        os.makedirs(pref_save_path)
 
 
 class FileLoadFromTarget(QThread):
@@ -353,6 +416,11 @@ def open_downloader():
 def open_loading_dialog(thread):
     dlg = Dialog.ProgressBar(thread)
     dlg.show()
+    dlg.exec_()
+
+
+def open_manual_input():
+    dlg = Dialog.ManualInputDialog()
     dlg.exec_()
 
 
