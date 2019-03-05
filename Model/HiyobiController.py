@@ -9,79 +9,12 @@ import traceback
 import shutil
 import cfscrape
 import requests
-import re
 import os
-from Model import FileUtil, FirebaseClient, Logger
+from Model import FileUtil, FirebaseClient, Logger, Gallery
 from View import Settings, Dialog
 
 URL_HIYOBI = "https://hiyobi.me/"
 READER_URL = "https://hybcomics.xyz"
-
-regex_hiyobi_group = re.compile(r'\((.*?)\)')
-regex_remove_bracket = re.compile(r'[\(|\)]')
-regex_replace_path = re.compile(r'\\|\:|\/|\*|\?|\"|\<|\>|\|')
-
-# TODO 이 부분은 Private Data로 Crypto 필요
-fbclient = FirebaseClient.FirebaseClient(
-    '397love@gmail.com',
-    '397love'
-)
-
-
-class Gallery:
-    """
-    Hiyobi Gallery 데이터를 구조화한 클래스
-    """
-    artist, code, group, keyword, original, path, title, type, url = "", "", "", "", "", "", "", "", ""
-
-    def initialize(self, source):
-        self.title = source.find('b').text
-        self.url = source.find('a', attrs={'target': '_blank'})['href']
-        self.code = self.url[self.url.rfind('/') + 1:]
-        sub_data = source.find_all('td')
-        for j in range(0, len(sub_data)):
-            if sub_data[j].text == '작가 : ':
-                self.artist = re.sub(regex_hiyobi_group, "", sub_data[j + 1].text).strip()
-                self.group = sub_data[j + 1].text.replace(self.artist, "")
-                self.group = re.sub(regex_remove_bracket, "", self.group).strip()
-            elif sub_data[j].text == '원작 : ':
-                self.original = sub_data[j + 1].text.strip()
-            elif sub_data[j].text == '종류 : ':
-                self.type = sub_data[j + 1].text.strip()
-            elif sub_data[j].text == '태그 : ':
-                for tag in sub_data[j + 1].find_all('a'):
-                    self.keyword = self.keyword + '|' + tag.text.strip()
-                    self.keyword = self.keyword[1:]
-        # make path
-        if self.artist is not "":
-            self.path = "[" + self.artist + "]"
-        self.path = self.path + self.title + "(" + self.code + ")"
-        self.path = re.sub(pattern=regex_replace_path, repl='_', string=self.path)
-
-    def print_gallery(self):
-        """
-        Gallery 데이터 출력 함수(Debug 용)
-        :return: 
-        """
-        print("artist: " + self.artist)
-        print('code: ' + self.code)
-        print("group: " + self.group)
-        print("keyword: " + self.keyword)
-        print("original: " + self.original)
-        print('path: ' + self.path)
-        print('title: ' + self.title)
-        print("type: " + self.type)
-        print('url: ' + self.url)
-
-    def valid_input_error(self):
-        """
-        필수 항목(code, title, url) 입력 체크
-        :return: 필수 항목 입력 여부
-        """
-        if self.code == "" or self.title == "" or self.url == "":
-            return False
-        else:
-            return True
 
 
 class ImageDownload(QThread):
@@ -208,7 +141,7 @@ class GalleryDownload(QThread):
             Logger.LOGGER.error("Compressing Process Error... pass")
         # Save to Firebase
         # TODO Enable next line on Build
-        fbclient.insert_data(self.gallery)
+        FirebaseClient.fbclient.insert_data(self.gallery)
 
 
 class DownloadByTable(QThread):
@@ -263,7 +196,7 @@ def get_download_list(crawl_page, parent):
     """
     Logger.LOGGER.info("Load exception list from Firebase")
     parent.current_state.emit("Load exception list from Firebase")
-    exception_list = fbclient.get_document_list()
+    exception_list = FirebaseClient.fbclient.get_document_list()
     # TODO Remove next line on build
     # exception_list = []
     parent.notifyProgress.emit(100 * 1 / (crawl_page+2))
@@ -278,6 +211,7 @@ def get_download_list(crawl_page, parent):
         parent.notifyProgress.emit(100 * 2 / (crawl_page+2))
     except Exception:
         Logger.LOGGER.error("Unexpected Exception Error..")
+        Logger.LOGGER.error(traceback.format_exc())
         Dialog.ErrorDialog().open_dialog("Unexpected Exception Error", "Unexpected Exception Request Error!")
 
     try:
@@ -287,7 +221,7 @@ def get_download_list(crawl_page, parent):
             soup = BeautifulSoup(requests.get(URL_HIYOBI+'list/'+str(i), cookies=cookies, headers=headers).content, 'html.parser')
             galleries = soup.find_all('div', class_="gallery-content")
             for data in galleries:
-                gallery = Gallery()
+                gallery = Gallery.Gallery()
                 gallery.initialize(data)
                 if gallery.code not in exception_list:
                     gallery_list.append(gallery)
@@ -298,6 +232,8 @@ def get_download_list(crawl_page, parent):
         Dialog.ErrorDialog().open_dialog("Hiyobi Error", "Hiyobi Request Error!")
     except Exception:
         Logger.LOGGER.error("Unexpected Error in Hiyobi Request")
+        Logger.LOGGER.error(traceback.format_exc())
+        Dialog.ErrorDialog().open_dialog("Unexpected Exception Error", "Unexpected Exception Request Error!")
 
 
 
