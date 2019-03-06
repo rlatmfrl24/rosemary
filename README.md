@@ -20,8 +20,11 @@ GUI Program for manga download & management
 - ETC *(ref. requirements.txt)*
 
 ## Future Works
+- Download Controller의 Interface화
 
 ## History
+#### 2019-03-06
+- Hitomi Controller 추가 완료
 #### 2019-03-05
 - Gallery, FirebaseClient 분리 및 상호의존성 제거
 - Hitomi Controller 추가(under develop)
