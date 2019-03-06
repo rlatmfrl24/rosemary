@@ -24,15 +24,6 @@ class LoadDownloadData(QThread):
             download_list = HitomiController.get_download_list(TARGET_CRAWL_PAGE, self)
 
 
-class LoadHiyobiData(QThread):
-    notifyProgress = pyqtSignal(int)
-    current_state = pyqtSignal(str)
-
-    def run(self):
-        global download_list
-        download_list = HiyobiController.get_download_list(TARGET_CRAWL_PAGE, self)
-
-
 class DownloaderDialog(QDialog):
 
     def __init__(self):

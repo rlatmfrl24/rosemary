@@ -17,39 +17,6 @@ URL_HIYOBI = "https://hiyobi.me/"
 READER_URL = "https://hybcomics.xyz"
 
 
-class ImageDownload(QThread):
-    """
-    @deprecated
-    단일 이미지 다운로드용 스레드
-    """
-
-    def __init__(self, target_url, save_path, header, cookie, parent):
-        super().__init__()
-        self.target_url = target_url
-        self.save_path = save_path
-        self.header = header
-        self.cookie = cookie
-        self.parent = parent
-
-    def run(self):
-        try:
-            # print(self.target_url)
-            if self.header is not None and self.cookie is not None:
-                cf_url = requests.get(self.target_url, cookies=self.cookie, headers=self.header).content
-            else:
-                cf_url = requests.get(self.target_url).content
-            name = self.target_url.split('/')[-1]
-            save_directory = self.save_path + "/"
-            with open(save_directory + name, 'wb') as f:
-                f.write(cf_url)
-            self.parent.current_cnt = self.parent.current_cnt+1
-            self.parent.state.emit(str(self.parent.current_cnt)+'/'+str(self.parent.total_cnt))
-        except requests.exceptions.RequestException:
-            Logger.LOGGER.error(traceback.format_exc())
-            QMessageBox.critical(self, "Download Error",
-                                 "Error raised while download '"+self.target_url+"'\n\n"+traceback.format_exc())
-
-
 class GalleryDownload(QThread):
     """
     Hiyobi Gallery 다운로드용 스레드
