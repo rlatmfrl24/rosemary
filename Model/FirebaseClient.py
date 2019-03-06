@@ -115,3 +115,10 @@ class FirebaseClient:
         }
         response = requests.post(target_url, headers=headers, data=json.dumps(data, cls=Encoder))
         Logger.LOGGER.info("Save Data to Firebase Document ID at '"+response.json()['name'].split('/')[-1]+"'")
+
+
+# TODO 이 부분은 Private Data로 Crypto 필요
+fbclient = FirebaseClient(
+    '397love@gmail.com',
+    '397love'
+)

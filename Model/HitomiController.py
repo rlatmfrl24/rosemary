@@ -1,59 +1,19 @@
-from PyQt5.QtWidgets import QMessageBox
-from PyQt5.QtCore import QSettings, QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from bs4 import BeautifulSoup
-from time import sleep
 from selenium import webdriver
-from tqdm import tqdm
 from requests_futures.sessions import FuturesSession
-import traceback
-import shutil
-import cfscrape
-import requests
+from tqdm import tqdm
 import os
-from Model import FileUtil, FirebaseClient, Logger, Gallery
-from View import Settings, Dialog
+import shutil
+import traceback
+from Model import FirebaseClient, Gallery, Logger, FileUtil
+from View import Settings
 
-URL_HIYOBI = "https://hiyobi.me/"
-READER_URL = "https://hybcomics.xyz"
-
-
-class ImageDownload(QThread):
-    """
-    @deprecated
-    단일 이미지 다운로드용 스레드
-    """
-
-    def __init__(self, target_url, save_path, header, cookie, parent):
-        super().__init__()
-        self.target_url = target_url
-        self.save_path = save_path
-        self.header = header
-        self.cookie = cookie
-        self.parent = parent
-
-    def run(self):
-        try:
-            # print(self.target_url)
-            if self.header is not None and self.cookie is not None:
-                cf_url = requests.get(self.target_url, cookies=self.cookie, headers=self.header).content
-            else:
-                cf_url = requests.get(self.target_url).content
-            name = self.target_url.split('/')[-1]
-            save_directory = self.save_path + "/"
-            with open(save_directory + name, 'wb') as f:
-                f.write(cf_url)
-            self.parent.current_cnt = self.parent.current_cnt+1
-            self.parent.state.emit(str(self.parent.current_cnt)+'/'+str(self.parent.total_cnt))
-        except requests.exceptions.RequestException:
-            Logger.LOGGER.error(traceback.format_exc())
-            QMessageBox.critical(self, "Download Error",
-                                 "Error raised while download '"+self.target_url+"'\n\n"+traceback.format_exc())
+URL_HITOMI = 'https://hitomi.la'
+URL_HITOMI_LIST = URL_HITOMI+"/index-korean-1.html"
 
 
 class GalleryDownload(QThread):
-    """
-    Hiyobi Gallery 다운로드용 스레드
-    """
     def __init__(self, gallery, state, driver):
         super().__init__()
         self.gallery = gallery
@@ -62,9 +22,6 @@ class GalleryDownload(QThread):
         self.current_cnt = 0
         self.thread_pool = []
         self.driver = driver
-
-    def __del__(self):
-        self.wait()
 
     def response_to_file(self, response, name, path):
         save_directory = path + "/"
@@ -84,7 +41,7 @@ class GalleryDownload(QThread):
         # Cloudflare Authorization
         self.state.emit('Authorize..')
         Logger.LOGGER.info("Wait for Cloudflare Authorization..")
-        self.driver.get(URL_HIYOBI)
+        self.driver.get(URL_HITOMI)
         while "Just a moment..." in self.driver.page_source:
             pass
         user_agent = self.driver.execute_script("return navigator.userAgent;")
@@ -99,27 +56,30 @@ class GalleryDownload(QThread):
             headers = None
             cookies = None
 
-        # Fetch image data from gallery page
-        self.state.emit('Fetch..')
-        Logger.LOGGER.info("Connect to Gallery page..")
-        self.driver.get(self.gallery.url)
-        sleep(1)
-        soup = BeautifulSoup(self.driver.page_source, "html.parser")
-
-        # Start download multi-thread
-        Logger.LOGGER.info("Download Start..")
-        img_urls = soup.find_all('div', class_="img-url")
-        self.total_cnt = len(img_urls)
+        # Make Download Session
         session = FuturesSession(max_workers=pref_max_pool_cnt)
         if headers is not None:
             session.headers = headers
         if cookies is not None:
             session.cookies = cookies
         responses = {}
-        for url_path in img_urls:
-            url = READER_URL+url_path.text
-            name = url.split('/')[-1]
-            responses[name] = session.get(url)
+
+        # Fetch image data from gallery page
+        download_list = []
+        self.state.emit('Fetch..')
+        Logger.LOGGER.info("Connect to Gallery page..")
+        self.driver.get(self.gallery.url.replace('galleries', 'reader'))
+        source = self.driver.page_source
+        soup = BeautifulSoup(source, 'html.parser')
+        ref_url = soup.find('img')['src']
+        ref_key = ref_url[:ref_url.index('.')]
+        img_urls = soup.find_all('div', class_='img-url')
+        self.total_cnt = len(img_urls)
+        for img_url in img_urls:
+            download_url = 'https:' + img_url.get_text().replace('//g', ref_key)
+            download_name = download_url.split('/')[-1]
+            responses[download_name] = session.get(download_url)
+            download_list.append(download_url)
         for filename in responses:
             self.response_to_file(response=responses[filename].result(), name=filename, path=gallery_save_path)
         session.close()
@@ -189,7 +149,6 @@ class DownloadByTable(QThread):
 
 def get_download_list(crawl_page, parent):
     """
-    Get Download List from Hiyobi
     :param crawl_page: 수집할 페이지 범위
     :param parent: 진행 상황을 표시할 화면
     :return: 수집된 Gallery List
@@ -197,43 +156,53 @@ def get_download_list(crawl_page, parent):
     Logger.LOGGER.info("Load exception list from Firebase")
     parent.current_state.emit("Load exception list from Firebase")
     exception_list = FirebaseClient.fbclient.get_document_list()
-    # TODO Remove next line on build
-    # exception_list = []
-    parent.notifyProgress.emit(100 * 1 / (crawl_page+2))
 
-    try:
-        gallery_list = []
-        Logger.LOGGER.info("Get cookie data for Cloudflare..")
-        parent.current_state.emit("Get cookie data for Cloudflare..")
-        cookie_value, user_agent = cfscrape.get_cookie_string(URL_HIYOBI)
-        headers = {'User-Agent': user_agent}
-        cookies = {'session_id': cookie_value}
-        parent.notifyProgress.emit(100 * 2 / (crawl_page+2))
-    except Exception:
-        Logger.LOGGER.error("Unexpected Exception Error..")
-        Logger.LOGGER.error(traceback.format_exc())
-        Dialog.ErrorDialog().open_dialog("Unexpected Exception Error", "Unexpected Exception Request Error!")
+    Logger.LOGGER.info("Open webdriver for crwaling..")
+    parent.current_state.emit("Open webdriver for crwaling..")
+    gallery_list = []
+    current_path = os.path.dirname(__file__)
+    current_path = current_path[:current_path.rfind('\\')]
+    chrome_path = os.path.join(current_path, 'chromedriver.exe')
+    options = webdriver.ChromeOptions()
+    options.add_argument('headless')
+    options.add_argument('window-size=1920x1080')
+    options.add_argument("disable-gpu")
+    driver = webdriver.Chrome(chrome_options=options, executable_path=chrome_path)
+    driver.implicitly_wait(10)
 
-    try:
-        for i in tqdm(range(1, crawl_page+1)):
-            # print("[SYSTEM]: Load From Page %d.." % i)
-            parent.current_state.emit("Load From Page %d.." % i)
-            soup = BeautifulSoup(requests.get(URL_HIYOBI+'list/'+str(i), cookies=cookies, headers=headers).content, 'html.parser')
-            galleries = soup.find_all('div', class_="gallery-content")
-            for data in galleries:
-                gallery = Gallery.Gallery()
-                gallery.initialize(data)
-                if gallery.code not in exception_list:
-                    gallery_list.append(gallery)
+    for i in tqdm(range(1, crawl_page + 1)):
+        parent.current_state.emit("Load From Page %d.." % i)
+        driver.get(URL_HITOMI_LIST.replace('1', str(i)))
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        gallery_content = soup.find('div', class_="gallery-content")
+        temp = gallery_content.findChildren('div', recursive=False)
+        for item in temp:
+            gallery = Gallery.Gallery()
+            gallery.url = URL_HITOMI + item.find('a')['href']
+            gallery.code = gallery.url[gallery.url.rfind('/') + 1:gallery.url.index('.html')]
+            gallery.title = item.find('h1').string
+            gallery.artist = item.find('div', class_="artist-list").get_text().strip().replace('\n', ", ")
+            desc_table = item.find('tbody').findChildren('a')
+            for desc in desc_table:
+                desc_key = desc['href']
+                desc_content = desc.get_text().strip()
+                if '/type/' in desc_key:
+                    if desc_content == 'doujinshi':
+                        gallery.type = "동인지"
+                    elif desc_content == 'manga':
+                        gallery.type = "망가"
+                    elif desc_content == 'artist CG':
+                        gallery.type = "cg아트"
+                elif '/series/' in desc_key:
+                    gallery.original = desc_content
+                elif '/tag/' in desc_key:
+                    gallery.keyword += desc_content + "|"
+                # print(desc['href']+" = "+desc.get_text().strip())
+            gallery.make_path()
+            if gallery.code not in exception_list:
+                gallery_list.append(gallery)
+                gallery.print_gallery()
             parent.notifyProgress.emit(100 * (i+2) / (crawl_page+2))
-        return gallery_list
-    except requests.exceptions.RequestException:
-        Logger.LOGGER.error("Hiyobi Requests Error..")
-        Dialog.ErrorDialog().open_dialog("Hiyobi Error", "Hiyobi Request Error!")
-    except Exception:
-        Logger.LOGGER.error("Unexpected Error in Hiyobi Request")
-        Logger.LOGGER.error(traceback.format_exc())
-        Dialog.ErrorDialog().open_dialog("Unexpected Exception Error", "Unexpected Exception Request Error!")
-
-
+    driver.close()
+    return gallery_list
 
