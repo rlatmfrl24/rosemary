@@ -1,21 +1,27 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtGui import QIntValidator
-from Model import HiyobiController, Logger
-from View import Dialog
+from Model import HiyobiController, HitomiController, Logger
+from View import Dialog, Settings
 import traceback
 
 TARGET_CRAWL_PAGE = 0
 download_list = []
 
 
-class LoadHiyobiData(QThread):
+class LoadDownloadData(QThread):
     notifyProgress = pyqtSignal(int)
     current_state = pyqtSignal(str)
 
     def run(self):
+        settings = QSettings()
+        global pref_download_site
+        pref_download_site = settings.value(Settings.SETTINGS_TARGET_SITE, Settings.SITE.Hiyobi, type=Settings.SITE)
         global download_list
-        download_list = HiyobiController.get_download_list(TARGET_CRAWL_PAGE, self)
+        if pref_download_site is Settings.SITE.Hiyobi:
+            download_list = HiyobiController.get_download_list(TARGET_CRAWL_PAGE, self)
+        elif pref_download_site is Settings.SITE.Hitomi:
+            download_list = HitomiController.get_download_list(TARGET_CRAWL_PAGE, self)
 
 
 class DownloaderDialog(QDialog):
@@ -48,7 +54,7 @@ class DownloaderDialog(QDialog):
 
     def init_ui(self):
         self.setGeometry(150, 150, 1000, 200)
-        self.setWindowTitle('Hiyobi Downloader')
+        self.setWindowTitle('Manga Downloader')
         layout = QVBoxLayout()
         lbl_crawl_pages = QLabel()
         lbl_crawl_pages.setText("Pages:")
@@ -85,7 +91,7 @@ class DownloaderDialog(QDialog):
                 self.download_table.removeRow(0)
             global TARGET_CRAWL_PAGE
             TARGET_CRAWL_PAGE = int(self.input_crawl_pages.text())
-            dlg = Dialog.ProgressBar(LoadHiyobiData())
+            dlg = Dialog.ProgressBar(LoadDownloadData())
             dlg.exec_()
             for item in download_list:
                 self.index = self.index + 1
@@ -97,7 +103,10 @@ class DownloaderDialog(QDialog):
     def download_all(self):
         self.btn_download.setEnabled(False)
         self.btn_find.setEnabled(False)
-        self.thread = HiyobiController.DownloadByTable(download_list, self)
+        if pref_download_site is Settings.SITE.Hiyobi:
+            self.thread = HiyobiController.DownloadByTable(download_list, self)
+        elif pref_download_site is Settings.SITE.Hitomi:
+            self.thread = HitomiController.DownloadByTable(download_list, self)
         self.thread.item_index.connect(self.set_index)
         self.thread.current_state.connect(self.on_progress)
         self.thread.thread_finished.connect(self.thread_finished)
@@ -106,7 +115,10 @@ class DownloaderDialog(QDialog):
     def test_download(self):
         test_list = []
         test_list.append(download_list[0])
-        self.thread = HiyobiController.DownloadByTable(test_list, self)
+        if pref_download_site is Settings.SITE.Hiyobi:
+            self.thread = HiyobiController.DownloadByTable(test_list, self)
+        elif pref_download_site is Settings.SITE.Hitomi:
+            self.thread = HitomiController.DownloadByTable(test_list, self)
         self.thread.item_index.connect(self.set_index)
         self.thread.current_state.connect(self.on_progress)
         self.thread.thread_finished.connect(self.thread_finished)

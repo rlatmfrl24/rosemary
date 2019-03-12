@@ -2,19 +2,29 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QStandardItem, QStandardItemModel, QIntValidator
 from PyQt5.QtCore import QSettings, Qt, QModelIndex, pyqtSlot
 import os
+from enum import Enum
 from Model import Logger
 
 SETTINGS_DEFAULT_ROLL_COUNT = 'settings/roll/cnt'
 SETTINGS_TOGGLE_RELOAD = 'settings/roll/reload'
 SETTINGS_TOGGLE_SHUFFLE = 'settings/roll/shuffle'
+
 SETTINGS_VIEWER_PATH = 'settings/general/viewer'
 SETTINGS_TARGET_PATH = 'settings/general/target'
-SETTINGS_SAVE_PATH = 'settings/download/save'
 SETTINGS_TOGGLE_PREVIEW = 'settings/general/preview'
+
+SETTINGS_SAVE_PATH = 'settings/download/save'
 SETTINGS_MAX_POOL_CNT = 'settings/download/pool'
+SETTINGS_TARGET_SITE = 'settings/download/target'
+
 HONEYVIEW_PATH = os.environ['ProgramW6432'] + '\\Honeyview\\Honeyview.exe'
-DEFAULT_TARGET_PATH = 'D:/hiyobi/new/'
+DEFAULT_TARGET_PATH = 'D:/rosemary/new/'
 DEFAULT_MAX_POOL = 8
+
+
+class SITE(Enum):
+    Hiyobi = 0
+    Hitomi = 1
 
 
 class StWidgetForm(QGroupBox):
@@ -31,12 +41,23 @@ class DownloadSetting(StWidgetForm):
         settings = QSettings()
         pref_save_path = settings.value(SETTINGS_SAVE_PATH, DEFAULT_TARGET_PATH, type=str)
         pref_max_pool_cnt = settings.value(SETTINGS_MAX_POOL_CNT, DEFAULT_MAX_POOL, type=int)
+        pref_download_site = settings.value(SETTINGS_TARGET_SITE, SITE.Hiyobi, type=SITE)
 
         self.setTitle('Download Settings')
-        lbl_save_path = QLabel()
-        lbl_save_path.setText('Download Path:')
-        lbl_max_pool_cnt = QLabel()
-        lbl_max_pool_cnt.setText('Max Download Pool:')
+        lbl_save_path = QLabel('Download Path:')
+        lbl_max_pool_cnt = QLabel('Max Download Pool:')
+
+        group_download_site = QGroupBox('Download Site')
+        self.radio_hiyobi = QRadioButton('Hiyobi')
+        self.radio_hitomi = QRadioButton('Hitomi')
+        group_download_site_layout = QHBoxLayout()
+        group_download_site_layout.addWidget(self.radio_hiyobi)
+        group_download_site_layout.addWidget(self.radio_hitomi)
+        group_download_site.setLayout(group_download_site_layout)
+        if pref_download_site == SITE.Hiyobi:
+            self.radio_hiyobi.setChecked(True)
+        elif pref_download_site == SITE.Hitomi:
+            self.radio_hitomi.setChecked(True)
 
         self.input_save_path = QLineEdit()
         self.input_save_path.setReadOnly(True)
@@ -58,13 +79,20 @@ class DownloadSetting(StWidgetForm):
         layout_max_pool_cnt.addWidget(lbl_max_pool_cnt)
         layout_max_pool_cnt.addWidget(self.input_max_pool_cnt)
 
+        self.box.addWidget(group_download_site)
         self.box.addLayout(layout_save_path)
         self.box.addLayout(layout_max_pool_cnt)
 
     def save_download_settings(self):
+        if self.radio_hiyobi.isChecked():
+            download_site = SITE.Hiyobi
+        elif self.radio_hitomi.isChecked():
+            download_site = SITE.Hitomi
+
         settings = QSettings()
         settings.setValue(SETTINGS_SAVE_PATH, self.input_save_path.text())
         settings.setValue(SETTINGS_MAX_POOL_CNT, self.input_max_pool_cnt.text())
+        settings.setValue(SETTINGS_TARGET_SITE, download_site)
         settings.sync()
 
     def change_save_path(self):

@@ -1,9 +1,12 @@
 from PyQt5.QtWidgets import QMessageBox, QDialog, QLabel, QLineEdit, QPushButton, QHBoxLayout, QWidget, QCheckBox, QVBoxLayout, QProgressBar, QGridLayout
 from PyQt5.QtGui import QIntValidator
-from Model import Logger, HiyobiController, FirebaseClient
+from Model import Logger, Gallery, FirebaseClient
 
 
 class ManualInputDialog(QDialog):
+
+    # TODO 이 부분은 Private Data로 Crypto 필요
+
     def __init__(self):
         super().__init__()
         self.init_ui()
@@ -66,7 +69,7 @@ class ManualInputDialog(QDialog):
         self.setLayout(dl_layout)
 
     def submit(self):
-        gallery = HiyobiController.Gallery()
+        gallery = Gallery.Gallery()
         gallery.code = self.le_code.text()
         gallery.title = self.le_title.text()
         gallery.artist = self.le_artist.text()
@@ -76,7 +79,7 @@ class ManualInputDialog(QDialog):
         gallery.url = self.le_url.text()
         gallery.keyword = self.le_keyword.text()
         if gallery.valid_input_error():
-            HiyobiController.fbclient.insert_data(gallery)
+            FirebaseClient.fbclient.insert_data(gallery)
             self.close()
         else:
             QMessageBox.warning(self, "Error", "You must enter the fields with an asterisk.")
