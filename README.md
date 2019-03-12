@@ -23,6 +23,8 @@ GUI Program for manga download & management
 - Download Controller의 Interface화
 
 ## History
+#### 2019-03-13
+- v1.1 버전 Release
 #### 2019-03-06
 - Hitomi Controller 추가 완료
 #### 2019-03-05
