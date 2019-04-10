@@ -46,15 +46,24 @@ class GalleryDownload(QThread):
             pass
         user_agent = self.driver.execute_script("return navigator.userAgent;")
 
+        # Set Cookie Value
         try:
             cookie_value = '__cfduid=' + self.driver.get_cookie('__cfduid')['value'] + \
                            '; cf_clearance=' + self.driver.get_cookie('cf_clearance')['value']
-            headers = {'User-Agent': user_agent}
             cookies = {'session_id': cookie_value}
         except TypeError:
             Logger.LOGGER.warning("Not apply cookies to requests")
-            headers = None
             cookies = None
+
+        # Set Request Header
+        try:
+            headers = {
+                'User-Agent': user_agent,
+                'referer': self.gallery.url.replace('galleries', 'reader')
+            }
+        except TypeError:
+            Logger.LOGGER.warning('Error on Setting HEADER')
+            headers = None
 
         # Make Download Session
         session = FuturesSession(max_workers=pref_max_pool_cnt)
@@ -101,7 +110,7 @@ class GalleryDownload(QThread):
             Logger.LOGGER.error("Compressing Process Error... pass")
         # Save to Firebase
         # TODO Enable next line on Build
-        FirebaseClient.fbclient.insert_data(self.gallery)
+        #FirebaseClient.fbclient.insert_data(self.gallery)
 
 
 class DownloadByTable(QThread):

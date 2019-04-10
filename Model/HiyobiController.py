@@ -70,6 +70,7 @@ class GalleryDownload(QThread):
         self.state.emit('Fetch..')
         Logger.LOGGER.info("Connect to Gallery page..")
         self.driver.get(self.gallery.url)
+        # print(self.gallery.url)
         sleep(1)
         soup = BeautifulSoup(self.driver.page_source, "html.parser")
 
