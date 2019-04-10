@@ -110,7 +110,7 @@ class GalleryDownload(QThread):
             Logger.LOGGER.error("Compressing Process Error... pass")
         # Save to Firebase
         # TODO Enable next line on Build
-        #FirebaseClient.fbclient.insert_data(self.gallery)
+        FirebaseClient.fbclient.insert_data(self.gallery)
 
 
 class DownloadByTable(QThread):
