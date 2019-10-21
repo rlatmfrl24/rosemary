@@ -77,15 +77,29 @@ class GalleryDownload(QThread):
         download_list = []
         self.state.emit('Fetch..')
         Logger.LOGGER.info("Connect to Gallery page..")
-        self.driver.get(self.gallery.url.replace('galleries', 'reader'))
-        source = self.driver.page_source
-        soup = BeautifulSoup(source, 'html.parser')
-        ref_url = soup.find('img')['src']
-        ref_key = ref_url[:ref_url.index('.')]
-        img_urls = soup.find_all('div', class_='img-url')
+
+        self.driver.get(self.gallery.url)
+        gallery_source = self.driver.page_source
+        soup = BeautifulSoup(gallery_source, 'html.parser')
+        thumbnail_list = soup.find_all('div', class_='thumbnail-container')
+        pages = len(thumbnail_list)
+
+        img_urls = []
+        reader_url = self.gallery.url.replace('galleries', 'reader') + '#'
+        for i in range(1, pages+1):
+            current_page = reader_url+str(i)
+            self.driver.get(current_page)
+            source = self.driver.page_source
+            soup = BeautifulSoup(source, 'html.parser')
+            ref_url = soup.find('img')['src']
+            ref_key = ref_url[:ref_url.index('.')]
+            img_url = soup.find('source')['srcset']
+            img_urls.append('https:'+img_url)
+
         self.total_cnt = len(img_urls)
         for img_url in img_urls:
-            download_url = 'https:' + img_url.get_text().replace('//g', ref_key)
+            # download_url = 'https:' + img_url.get_text().replace('//g', ref_key)
+            download_url = img_url
             download_name = download_url.split('/')[-1]
             responses[download_name] = session.get(download_url)
             download_list.append(download_url)
